@@ -79,7 +79,7 @@ def load_agent(params, policy):
 
 def main(_):
     game = "quoridor"
-    params = {"wall_count": 1, "board_size": 5}
+    params = {"wall_count": 2, "board_size": 5}
     policy = "ql"
 
     env = rl_environment.Environment(

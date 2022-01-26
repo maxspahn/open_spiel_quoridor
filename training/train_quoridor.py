@@ -33,7 +33,7 @@ from absl import flags
 import numpy as np
 import tensorflow.compat.v1 as tf
 
-from open_spiel.python import rl_environment
+from open_spiel.python import rl_environment, rl_tools
 from open_spiel.python.algorithms import random_agent
 from open_spiel.python.algorithms import tabular_qlearner
 from open_spiel.python.pytorch import dqn
@@ -73,21 +73,24 @@ def eval_against_random_bots(env, trained_agents, random_agents, num_episodes):
 
 def save_agent(agent, params, policy):
     import pickle
-    fileName = '../policies/' + policy
+
+    fileName = "../policies/" + policy
     for item in params:
-        fileName += "_" + item + str(params[item]) 
+        fileName += "_" + item + str(params[item])
     fileName += ".pickle"
-    with open(fileName, 'wb') as file:
+    with open(fileName, "wb") as file:
         pickle.dump(agent, file)
+
 
 def load_agent(params, policy):
     import pickle
-    fileName = '../policies/' + policy
+
+    fileName = "../policies/" + policy
     for item in params:
-        fileName += "_" + item + str(params[item]) 
+        fileName += "_" + item + str(params[item])
     fileName += ".pickle"
     try:
-        with open(fileName, 'rb') as file:
+        with open(fileName, "rb") as file:
             agent = pickle.load(file)
     except FileNotFoundError:
         return None
@@ -97,10 +100,12 @@ def load_agent(params, policy):
 def main(_):
     game = "quoridor"
     num_players = 2
-    params = {'wall_count': 1, 'board_size': 5}
-    policy = 'ql'
+    params = {"wall_count": 2, "board_size": 5}
+    policy = "ql"
 
-    env = rl_environment.Environment(game, board_size=params['board_size'], wall_count=params['wall_count'])
+    env = rl_environment.Environment(
+        game, board_size=params["board_size"], wall_count=params["wall_count"]
+    )
     num_actions = env.action_spec()["num_actions"]
     state_size = env.observation_spec()["info_state"][0]
 
@@ -112,13 +117,17 @@ def main(_):
     ]
 
     if not agents:
-        if policy == 'ql':
+        if policy == "ql":
             agents = [
-                tabular_qlearner.QLearner(player_id=0, num_actions=num_actions), 
-                tabular_qlearner.QLearner(player_id=1, num_actions=num_actions), 
+                tabular_qlearner.QLearner(
+                    player_id=0, num_actions=num_actions, discount_factor=0.1, epsilon_schedule=rl_tools.ConstantSchedule(0.5)
+                ),
+                tabular_qlearner.QLearner(
+                    player_id=1, num_actions=num_actions, discount_factor=0.1, epsilon_schedule=rl_tools.ConstantSchedule(0.5)
+                ),
             ]
-        elif policy == 'dql':
-            q_agents = load_agent(params, 'ql')
+        elif policy == "dql":
+            q_agents = load_agent(params, "ql")
             agents = [
                 dqn.DQN(  # pylint: disable=g-complex-comprehension
                     0,
@@ -126,19 +135,20 @@ def main(_):
                     num_actions=num_actions,
                     hidden_layers_sizes=[4048, 1024],
                     replay_buffer_capacity=50,
-                    batch_size=20), 
+                    batch_size=20,
+                ),
                 dqn.DQN(  # pylint: disable=g-complex-comprehension
                     1,
                     state_representation_size=state_size,
                     num_actions=num_actions,
                     hidden_layers_sizes=[4048, 1024],
                     replay_buffer_capacity=50,
-                    batch_size=20, 
-                    learning_rate=0.01), 
+                    batch_size=20,
+                    learning_rate=0.01,
+                ),
             ]
     else:
         print("using pre-trained agents")
-
 
     # 1. Train the agents
     training_episodes = FLAGS.num_episodes
