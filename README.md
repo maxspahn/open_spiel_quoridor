@@ -4,14 +4,22 @@ In this repository, open_spiel is used to train an agent to play Quoridor.
 
 My agent is still very bad (Qlearning), how would you approach it?
 
-## Dependencies
+## Installation
+
+Best is to install via [poetry](https://python-poetry.org/docs/) 
+as it automatically sets up a virtual environment.
 
 ```bash
-pip3 install open_spiel
-pip3 install pickle
+poetry install
+```
+
+## Multiplayer gaming through
+
+```bash
+poetry shell
+python3 multi_player.py
 ```
 
 ## Policies
 
 Trained policies are not uploaded.
-
