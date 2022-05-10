@@ -4,6 +4,14 @@ In this repository, open_spiel is used to train an agent to play Quoridor.
 
 My agent is still very bad (Qlearning), how would you approach it?
 
+## Dependencies
+
+You must have python installed as well as cmake and a cpp compiler.
+
+```bash
+sudo apt install cmake clang
+```
+
 ## Installation
 
 Best is to install via [poetry](https://python-poetry.org/docs/) 
