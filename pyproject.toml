@@ -8,6 +8,11 @@ authors = ["Max Spahn <m.spahn@tudelft.nl>"]
 python = "^3.8,<3.10"
 open-spiel = "^1.1.0"
 pickle4 = "^0.0.1"
+tensorflow = {version = "^2.9.1", optional = true}
+tensorflow-gpu = {version = "^2.9.1", optional = true}
+
+[tool.poetry.extras]
+ml = ["tensorflow", "tensorflow-gpu"]
 
 [tool.poetry.dev-dependencies]
 pylint = "^2.13.8"
