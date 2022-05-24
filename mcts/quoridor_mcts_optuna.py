@@ -21,6 +21,7 @@ from __future__ import print_function
 import collections
 import random
 import sys
+from typing import Dict, Any
 
 from absl import app
 from absl import flags
@@ -31,6 +32,8 @@ from open_spiel.python.bots import gtp
 from open_spiel.python.bots import human
 from open_spiel.python.bots import uniform_random
 import pyspiel
+
+import optuna
 
 _KNOWN_PLAYERS = [
     # A generic Monte Carlo Tree Search agent.
@@ -49,55 +52,50 @@ _KNOWN_PLAYERS = [
 
 flags.DEFINE_string("game", "quoridor", "Name of the game.")
 flags.DEFINE_enum("player1", "mcts", _KNOWN_PLAYERS, "Who controls player 1.")
-flags.DEFINE_enum("player2", "human", _KNOWN_PLAYERS, "Who controls player 2.")
+flags.DEFINE_enum("player2", "mcts", _KNOWN_PLAYERS, "Who controls player 2.")
 flags.DEFINE_enum("player3", "mcts", _KNOWN_PLAYERS, "Who controls player 3.")
 flags.DEFINE_enum("player4", "mcts", _KNOWN_PLAYERS, "Who controls player 4.")
 flags.DEFINE_string("gtp_path", None, "Where to find a binary for gtp.")
 flags.DEFINE_multi_string("gtp_cmd", [], "GTP commands to run at init.")
 flags.DEFINE_string("az_path", None,
                     "Path to an alpha_zero checkpoint. Needed by an az player.")
-flags.DEFINE_float("uct_c", 3.457, "UCT's exploration constant.")
-flags.DEFINE_integer("rollout_count", 5, "How many rollouts to do.")
-flags.DEFINE_integer("max_simulations", 201, "How many simulations to run.")
+flags.DEFINE_integer("uct_c", 2, "UCT's exploration constant.")
+flags.DEFINE_integer("rollout_count", 1, "How many rollouts to do.")
+flags.DEFINE_integer("max_simulations", 10000, "How many simulations to run.")
 flags.DEFINE_integer("num_games", 100, "How many games to play.")
 flags.DEFINE_integer("seed", None, "Seed for the random number generator.")
 flags.DEFINE_bool("random_first", False, "Play the first move randomly.")
 flags.DEFINE_bool("solve", True, "Whether to use MCTS-Solver.")
 flags.DEFINE_bool("quiet", False, "Don't show the moves as they're played.")
-flags.DEFINE_bool("verbose", True, "Show the MCTS stats of possible moves.")
+flags.DEFINE_bool("verbose", False, "Show the MCTS stats of possible moves.")
 
 FLAGS = flags.FLAGS
 
 
 def _opt_print(*args, **kwargs):
-  if not FLAGS.quiet:
-    print(*args, **kwargs)
+  pass
 
-
-def _init_bot(bot_type, game, player_id):
-  """Initializes a bot by type."""
+def _init_mcts_bot(game, params):
+  uct_c = params['uct_c']
+  max_simulations = params['max_simulations']
+  rollout_count = params['rollout_count']
   rng = np.random.RandomState()
-  if bot_type == "mcts":
-    evaluator = mcts.RandomRolloutEvaluator(FLAGS.rollout_count, rng)
-    return mcts.MCTSBot(
-        game,
-        FLAGS.uct_c,
-        FLAGS.max_simulations,
-        evaluator,
-        random_state=rng,
-        solve=FLAGS.solve,
-        verbose=FLAGS.verbose)
-  if bot_type == "random":
-    return uniform_random.UniformRandomBot(player_id, rng)
-  if bot_type == "human":
-    return human.HumanBot()
-  if bot_type == "gtp":
-    bot = gtp.GTPBot(game, FLAGS.gtp_path)
-    for cmd in FLAGS.gtp_cmd:
-      bot.gtp_cmd(cmd)
-    return bot
-  raise ValueError("Invalid bot type: %s" % bot_type)
+  evaluator = mcts.RandomRolloutEvaluator(rollout_count, rng)
+  return mcts.MCTSBot(
+    game,
+    uct_c,
+    max_simulations,
+    evaluator,
+    random_state=rng,
+    solve=True,
+    verbose=False)
 
+def _init_random_bot(player_id):
+  rng = np.random.RandomState()
+  return uniform_random.UniformRandomBot(player_id, rng)
+
+def _init_human_bot():
+    return human.HumanBot()
 
 def _get_action(state, action_str):
   for action in state.legal_actions():
@@ -106,29 +104,12 @@ def _get_action(state, action_str):
   return None
 
 
-def _play_game(game, bots, initial_actions):
+def _play_game(game, bots):
   """Plays one game."""
   state = game.new_initial_state()
   _opt_print("Initial state:\n{}".format(state))
 
   history = []
-
-  if FLAGS.random_first:
-    assert not initial_actions
-    initial_actions = [state.action_to_string(
-        state.current_player(), random.choice(state.legal_actions()))]
-
-  for action_str in initial_actions:
-    action = _get_action(state, action_str)
-    if action is None:
-      sys.exit("Invalid action: {}".format(action_str))
-
-    history.append(action_str)
-    for bot in bots:
-      bot.inform_action(state, state.current_player(), action)
-    state.apply_action(action)
-    _opt_print("Forced action", action_str)
-    _opt_print("Next state:\n{}".format(state))
 
   while not state.is_terminal():
     current_player = state.current_player()
@@ -171,18 +152,45 @@ def _play_game(game, bots, initial_actions):
 
   return returns, history
 
+def sample_mcts_params(trial: optuna.Trial) -> Dict[str, Any]:
+  uct_c = trial.suggest_float("uct_c", 1, 5, log = False)
+  rollout_count = trial.suggest_int("rollout_count", 1, 5)
+  max_simulations = trial.suggest_int("max_simulations", 100, 300, log = False)
+  return {'max_simulations': max_simulations, 'uct_c' : uct_c, 'rollout_count': rollout_count}
+
+
+def objective(trial: optuna.Trial) -> float:
+  num_players = 4
+  board_size = 5
+  wall_count = 2
+  params_game = {"wall_count": wall_count, "board_size": board_size, "players": num_players}
+  game = pyspiel.load_game('quoridor', params_game)
+  params = sample_mcts_params(trial)
+  mcts_agent = _init_mcts_bot(game, params)
+  params_bot = {'max_simulations': 20, 'uct_c': 3, 'rollout_count': 2}
+  mcts_bot = _init_mcts_bot(game, params_bot)
+  bots = [mcts_agent, mcts_bot, _init_random_bot(2), _init_random_bot(3)]
+  nb_games = 3
+  overall_returns = []
+  for i in range(nb_games):
+      print(f"playing game {i}")
+      returns, history = _play_game(game, bots)
+      overall_returns.append(returns[0])
+  print(overall_returns)
+  return np.mean(overall_returns)
+
+
 
 def main(argv):
-  game = "quoridor"
-  print("Choose number of players...(2-4)")
+  #print("Choose number of players...(2-4)")
   #num_players = int(input())
   num_players = 4
-  print("Choose size of board...(3-100)")
+  #print("Choose size of board...(3-100)")
   #board_size = int(input())
-  board_size = 5
-  print("Choose number of walls...(0-100)")
+  board_size = 3
+  #print("Choose number of walls...(0-100)")
   #wall_count = int(input())
-  wall_count = 2
+  wall_count = 0
   params = {"wall_count": wall_count, "board_size": board_size, "players": num_players}
   game = pyspiel.load_game(FLAGS.game, params)
   if game.num_players() > 4:
@@ -218,4 +226,20 @@ def main(argv):
 
 
 if __name__ == "__main__":
-  app.run(main)
+    # Let us minimize the objective function above.
+    print("Running 10 trials...")
+    study = optuna.create_study(direction="maximize")
+    study.optimize(objective, n_trials=10)
+    print("Best value: {} (params: {})\n".format(study.best_value, study.best_params))
+
+    # We can continue the optimization as follows.
+    print("Running 20 additional trials...")
+    study.optimize(objective, n_trials=20)
+    print("Best value: {} (params: {})\n".format(study.best_value, study.best_params))
+
+    """
+    # We can specify the timeout instead of a number of trials.
+    print("Running additional trials in 2 seconds...")
+    study.optimize(objective, timeout=2.0)
+    print("Best value: {} (params: {})\n".format(study.best_value, study.best_params))
+    """
