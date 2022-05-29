@@ -4,6 +4,9 @@ In this repository, open_spiel is used to train an agent to play Quoridor.
 
 My agent is still very bad (Qlearning), how would you approach it?
 
+## Install tensorflow with gpu support
+https://towardsdatascience.com/installing-tensorflow-gpu-in-ubuntu-20-04-4ee3ca4cb75d
+
 ## Dependencies
 
 You must have python installed as well as cmake and a cpp compiler.
