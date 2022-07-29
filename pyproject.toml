@@ -10,6 +10,8 @@ open-spiel = "^1.1.0"
 pickle4 = "^0.0.1"
 tensorflow = {version = "^2.9.1", optional = true}
 tensorflow-gpu = {version = "^2.9.1", optional = true}
+matplotlib = "^3.5.2"
+pandas = "^1.4.3"
 
 [tool.poetry.extras]
 ml = ["tensorflow", "tensorflow-gpu"]
