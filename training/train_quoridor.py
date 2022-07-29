@@ -31,7 +31,7 @@ import time
 from absl import app
 from absl import flags
 import numpy as np
-import tensorflow.compat.v1 as tf
+import tensorflow as tf
 
 from open_spiel.python import rl_environment, rl_tools
 from open_spiel.python.algorithms import random_agent
